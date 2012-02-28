@@ -19,6 +19,8 @@
     void (^successBlock_) (NSURL *URL);
     void (^failureBlock_) (NSError *error);
     
+    NSString *notification_;
+    
     BOOL done;
 }
 - (void)DOMLoaded_;
@@ -40,7 +42,28 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma mark - NSObject
+- (id)init {
+    if ((self = [super init])) {
+        selfReference_ = self;
+    }
+    return self;
+}
+- (id)initWithNSNotificationName:(NSString *)s {
+    if ((self = [super init])) {
+        notification_ = s;
+        selfReference_ = self;
+    }
+    return self;
+}
+- (id)initWithNSNotificationName:(NSString *)s youTubeLink:(NSURL *)u
+{
+    if ((self = [super init]))
+    {
+        [self getVideoUrlForUrl:u notificatoinName:s];
+    }
 
+    return self;
+}
 - (id)initWithYouTubeURL:(NSURL *)youTubeURL success:(void(^)(NSURL *URL))success failure:(void(^)(NSError *error))failure {
     if ((self = [super init])) {
         successBlock_ = success;
@@ -52,19 +75,18 @@
     }
     return self;
 }
-
+- (void) getVideoUrlForUrl:(NSURL *) u notificatoinName:(NSString *)n
+{
+    [self cleanup_];
+    notification_ = n;
+    youTubeURL_ = u;
+    [self doRetry_];
+}
 - (void)dealloc {
     [self cleanup_];
     webView_.delegate = nil;
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark - Static
-
-+ (PSYouTubeExtractor *)extractorForYouTubeURL:(NSURL *)youTubeURL success:(void(^)(NSURL *URL))success failure:(void(^)(NSError *error))failure {
-    PSYouTubeExtractor *extractor = [[PSYouTubeExtractor alloc] initWithYouTubeURL:youTubeURL success:success failure:failure];
-    return extractor;
-}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma mark - Public
@@ -73,6 +95,7 @@
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(DOMLoaded_) object:nil]; // cancel watchdog
     successBlock_ = nil;
     failureBlock_ = nil;
+    notification_ = nil;
     selfReference_ = nil;    
     [webView_ stopLoading];
     webView_ = nil;
@@ -98,8 +121,12 @@
         retryCount_++;
         domWaitCounter_ = 0;
         PSLog(@"Trying to load page...");
-        webView_.delegate = nil;
-        webView_ = [[UIWebView alloc] init];
+
+        if (!webView_)
+            webView_ = [[UIWebView alloc] init];
+        else
+            webView_.delegate = nil;
+
         webView_.delegate = self;
         [webView_ loadRequest:[NSURLRequest requestWithURL:youTubeURL_]];
         [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(DOMLoaded_) object:nil];
@@ -119,10 +146,17 @@
         done = YES;
         NSURL *URL = [NSURL URLWithString:youTubeMP4URL];
         NSLog(@"%@",URL);
-        [[NSNotificationCenter defaultCenter] postNotificationName:@"URLDidFinishExtractingFromYouTubeURL" object:URL];
-//            successBlock_(URL);
+        
+        if (notification_)
+            [[NSNotificationCenter defaultCenter] postNotificationName:notification_ object:URL];
+        else
+        {
+            if (successBlock_)
+                successBlock_(URL);
+        }
+
         [self cleanup_];
-    }else {
+    } else {
         if (domWaitCounter_ < kExtraDOMDelay * 2) {
             domWaitCounter_++;
             [self performSelector:@selector(DOMLoaded_) withObject:nil afterDelay:0.5f]; // try every 0.5 sec

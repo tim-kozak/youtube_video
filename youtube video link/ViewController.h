@@ -16,6 +16,10 @@
     NSURLConnection *con;
     NSURL *url;
     NSMutableData *videoData;
+    MPMoviePlayerController *movieController;
 }
+@property (retain, nonatomic) IBOutlet UIActivityIndicatorView *activity;
+
+- (void) getVideo;
 - (void) play:(NSNotification *)n;
 @end
